@@ -17,11 +17,7 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKAN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-          GITHUB_URL: ${{ secrets.GITHUB_URL }}
-        with:
-          args: >
-              -Dsonar.host.url=http://0.0.0.0:9000
-              -Dsonar.projectKey=test
+          GITHUB_URL: ${{ secrets.GIT_URL }}
               
       # If you wish to fail your job when the Quality Gate is red, uncomment the
       # following lines. This would typically be used to fail a deployment.
