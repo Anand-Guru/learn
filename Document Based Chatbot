@@ -1,0 +1,105 @@
+# pip install --upgrade --quiet  langchain==0.2.16 sentence_transformers
+# pip install --q langchain-huggingface
+# pip install --q huggingface_hub
+# pip install langchain-google-vertexai
+# pip install langchain_mistralai
+# pip install langchain_community
+# pip install chromadb
+
+
+from langchain_google_vertexai import VertexAIModelGarden
+from langchain_google_vertexai.model_garden_maas.mistral import VertexModelGardenMistral
+
+HF_TOKEN = "enter Hugging face token"
+raw_documents ="https://kubernetes.io/docs/concepts/"
+
+PROJECT = "gcp model id"
+MODEL_NAME = "mistral-nemo@2407"
+llm = VertexModelGardenMistral(project=PROJECT, model=MODEL_NAME)
+
+
+from langchain_text_splitters import HTMLHeaderTextSplitter
+from langchain_text_splitters import RecursiveJsonSplitter
+headers_to_split_on = [
+    ("h1", "Header 1"),
+    ("h2", "Header 2"),
+    ("h3", "Header 3"),
+    ("h4", "Header 4"),
+]
+
+html_splitter = HTMLHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
+html_header_splits = html_splitter.split_text_from_url(raw_documents)
+
+
+from langchain_community.embeddings import HuggingFaceInferenceAPIEmbeddings
+
+embeddings = HuggingFaceInferenceAPIEmbeddings(
+    api_key=HF_TOKEN, model_name="sentence-transformers/all-MiniLM-l6-v2"
+)
+print(embeddings)
+
+
+from langchain_community.vectorstores import Chroma
+
+vector_db = Chroma.from_documents(
+    documents=html_header_splits,
+    embedding=embeddings,
+    collection_name="mist_v2_db"
+    # collection_name="json_db"
+)
+
+
+from langchain.prompts import ChatPromptTemplate, PromptTemplate
+from langchain.retrievers.multi_query import MultiQueryRetriever
+
+QUERY_PROMPT = PromptTemplate(
+    input_variables=["question"],
+    template="""You are an AI language model assistant. Your task is to generate five
+    different versions of the given user question to retrieve relevant documents from
+    a vector database. By generating multiple perspectives on the user question, your
+    goal is to help the user overcome some of the limitations of the distance-based
+    similarity search. Provide these alternative questions separated by newlines.
+    Original question: {question}""",
+)
+
+
+retriever = MultiQueryRetriever.from_llm(
+    vector_db.as_retriever(),
+    llm,
+    prompt=QUERY_PROMPT
+)
+
+# RAG prompt
+template = """Answer the question based ONLY resource avalibe in the vector_db:
+{context}
+Question: {question}
+explain {question} and
+provide web link of each {question} with answer
+if the answer is not part of database then answer that"This is not related to kubernetes. I can only help you with kubernetes"
+Condition: Only answer form the database
+"""
+
+prompt = ChatPromptTemplate.from_template(template)
+
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+
+
+
+# text_input = input("enter query:")
+def input_data (var):
+    chain = ({"context": retriever, "question": RunnablePassthrough()} | prompt | llm | StrOutputParser() )
+
+    return chain.invoke(var)
+
+    a = True
+
+    
+while a:
+    var = input()
+    if not var:
+        a = False
+        break
+    text_input = input_data(var)
+
+    print(text_input)
